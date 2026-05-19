@@ -1,10 +1,257 @@
-import React from 'react'
-import { createRoot } from 'react-dom/client'
-import App from './App.jsx'
-import './index.css'
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createRoot } from "react-dom/client";
+import { motion, AnimatePresence } from "framer-motion";
+import { Archive, CheckCircle2, ChevronLeft, ChevronRight, Edit3, ExternalLink, Flame, GripVertical, Heart, MessageCircle, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
+import { supabase, isSupabaseConfigured } from "./supabaseClient.js";
+import { Button } from "./components/ui/button.jsx";
+import { Card, CardContent } from "./components/ui/card.jsx";
+import "./index.css";
 
-createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-)
+const APP_STATE_ID = "main";
+const placeholderImage = "https://images.unsplash.com/photo-1618220179428-22790b461013?q=80&w=1200&auto=format&fit=crop";
+
+const starterRooms = {
+  Bedroom: [
+    {
+      itemName: "Mattress",
+      priority: "Highest priority",
+      directionNotes: "Testing options at Sleep Loft downtown. Generally looking in the ~$1K range but open to investing for something long-term.",
+      options: [
+        { id: "mattress-1", title: "WinkBeds Luxury Firm", price: "$1,700", url: "https://www.winkbeds.com/?gad_source=1&gad_campaignid=21199588009", image: "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?q=80&w=1200&auto=format&fit=crop", likes: 0, liked: false, comments: ["Liv says this is the best mattress they have upstate."] },
+        { id: "mattress-2", title: "Helix Midnight Luxe", price: "$1,099", url: "https://helixsleep.com/products/midnight-luxe/queen-tencel", image: "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?q=80&w=1200&auto=format&fit=crop", likes: 0, liked: false, comments: ["Going to test this at Sleep Loft."] },
+      ],
+    },
+    { itemName: "Bed frame / headboard", priority: "Highest priority", options: [{ id: "bedframe-1", title: "Pasadena Platform Bed", price: "$699", url: "https://www.bedbathandbeyond.com/Home-Garden/Pasadena-Full-Solid-Wood-Low-Profile-Platform-Bed-in-White/40018086/product.html", image: "https://images.unsplash.com/photo-1616594039964-3f6d6d6d8b0d?q=80&w=1200&auto=format&fit=crop", likes: 0, liked: false, comments: ["Option 2 from spreadsheet was getting strong reactions."] }] },
+    { itemName: "Duvet cover", directionNotes: "Voting to get rid of navy. Looking for something softer and more elevated.", options: [] },
+    { itemName: "Nightstands", options: [{ id: "nightstand-1", title: "Zara Home Oak Bedside Table", price: "Price TBD", url: "https://www.zarahome.com/us/oak-bedside-table-with-drawer-l45113072", image: "https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?q=80&w=1200&auto=format&fit=crop", likes: 0, liked: false, comments: ["Nice small-profile option for apartment living."] }] },
+    { itemName: "Bedside lamps", options: [] },
+    { itemName: "Dresser", options: [{ id: "dresser-1", title: "Facebook Marketplace Vintage Dresser", price: "Price TBD", url: "https://www.facebook.com/marketplace/item/2027229008142841/", image: "https://images.unsplash.com/photo-1616628182509-6f0c6b7c98c4?q=80&w=1200&auto=format&fit=crop", likes: 0, liked: false, comments: [] }] },
+    { itemName: "Pillows", directionNotes: "Not for you to weigh into 😌", options: [] },
+    { itemName: "Sheets (2 sets)", options: [{ id: "sheets-1", title: "Buffy Breeze Sheets", price: "$189", url: "https://buffy.co/products/breeze-sheets", image: "https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?q=80&w=1200&auto=format&fit=crop", likes: 0, liked: false, comments: [] }] },
+    { itemName: "Laundry hamper", directionNotes: "Not for you to weigh into!", options: [] },
+    { itemName: "Mattress protector", directionNotes: "Not for you to weigh into!", options: [] },
+  ],
+  "Living Room": [
+    { itemName: "Couch", priority: "Highest priority", directionNotes: "Looking at something in the 90\" range. Need to balance comfort with keeping enough room for a desk or dining table.", options: [
+      { id: "couch-1", title: "Crate & Barrel Lounge Deep 93 Sectional", price: "$2,900", url: "https://www.crateandbarrel.com/lounge-deep-93-reversible-storage-chaise-lounge-sectional-sofa/s493692", image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?q=80&w=1200&auto=format&fit=crop", likes: 0, liked: false, comments: ["Strong contender if layout allows."] },
+      { id: "couch-2", title: "Sydney Feather Sectional", price: "$2,400", url: "https://citimodern.com/products/sydney-feather-sectional-sofa-gray", image: "https://images.unsplash.com/photo-1493663284031-b7e3aaa4cab7?q=80&w=1200&auto=format&fit=crop", likes: 0, liked: false, comments: ["Could work better if room for dining table is priority."] },
+    ] },
+    { itemName: "Coffee table", options: [{ id: "coffee-1", title: "Glass Coffee Table (Marketplace)", price: "$150", url: "https://www.facebook.com/marketplace/item/1532705148486304/", image: "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?q=80&w=1200&auto=format&fit=crop", likes: 0, liked: false, comments: ["Glass visually keeps the room feeling open."] }] },
+    { itemName: "Console", options: [{ id: "console-1", title: "Marketplace Console Table", price: "$200", url: "https://www.facebook.com/marketplace/item/957326653857866/", image: "https://images.unsplash.com/photo-1519710164239-da123dc03ef4?q=80&w=1200&auto=format&fit=crop", likes: 0, liked: false, comments: [] }] },
+    { itemName: "Floor or table lamps", options: [{ id: "lamp-1", title: "CB2 Polar White Cement Floor Lamp", price: "$299", url: "https://www.cb2.com/polar-white-cement-floor-lamp/s166184", image: "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?q=80&w=1200&auto=format&fit=crop", likes: 0, liked: false, comments: ["Memorial Day Sale BABY."] }] },
+    { itemName: "Small table for eating / WFH", directionNotes: "TBD if feasible with the space.", options: [] },
+    { itemName: "Dining chair / chair to WFH", directionNotes: "TBD if feasible with the space; would want it comfy enough to work in.", options: [] },
+    { itemName: "Bookshelf", options: [] },
+    { itemName: "Entryway shoe rack / hooks", directionNotes: "TBD if needed.", options: [] },
+  ],
+  "Comfort / Decor": [
+    { itemName: "Art / wall decor", options: [{ id: "mirror-1", title: "Funky Marketplace Mirror", price: "$120", url: "https://www.facebook.com/marketplace/item/2027476141137109/", image: "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?q=80&w=1200&auto=format&fit=crop", likes: 0, liked: false, comments: ["Fun mirror option from Alison."] }] },
+    { itemName: "Throw blankets", options: [] },
+    { itemName: "Rug(s)", options: [] },
+    { itemName: "Plants", options: [] },
+  ],
+  Patio: [
+    { itemName: "Chairs", options: [] },
+    { itemName: "Table", options: [] },
+    { itemName: "Couch", options: [] },
+    { itemName: "Plants", options: [] },
+  ],
+};
+
+function moneyish(value) {
+  if (!value) return "Price TBD";
+  return value.startsWith("$") ? value : `$${value}`;
+}
+
+function Field({ label, children }) {
+  return <label className="block"><span className="mb-1 block text-sm font-medium text-neutral-700">{label}</span>{children}</label>;
+}
+
+function ModalShell({ children, onClose }) {
+  return (
+    <AnimatePresence>
+      <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+        <motion.div className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl" initial={{ y: 24, opacity: 0, scale: 0.98 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 24, opacity: 0, scale: 0.98 }}>
+          <div className="flex justify-end"><Button variant="ghost" size="icon" onClick={onClose} className="rounded-full"><X className="h-5 w-5" /></Button></div>
+          {children}
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+function OptionModal({ roomName, itemName, onClose, onSubmit, existingOption }) {
+  const [form, setForm] = useState({ title: existingOption?.title || "", price: existingOption?.price || "", url: existingOption?.url || "", image: existingOption?.image || "" });
+  const [uploadName, setUploadName] = useState("");
+  const isEditing = Boolean(existingOption);
+  function updateField(field, value) { setForm((prev) => ({ ...prev, [field]: value })); }
+  function handleUpload(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setUploadName(file.name);
+    const reader = new FileReader();
+    reader.onload = () => updateField("image", String(reader.result));
+    reader.readAsDataURL(file);
+  }
+  function submit(event) {
+    event.preventDefault();
+    if (!form.title.trim()) return;
+    onSubmit({ id: existingOption?.id || `${itemName}-${Date.now()}`, title: form.title.trim(), price: moneyish(form.price.trim()), url: form.url.trim() || "#", image: form.image.trim() || placeholderImage, likes: existingOption?.likes || 0, liked: existingOption?.liked || false, comments: existingOption?.comments || [] });
+    onClose();
+  }
+  return (
+    <ModalShell onClose={onClose}>
+      <div className="mb-5 -mt-8"><p className="text-sm font-medium text-neutral-500">{roomName} / {itemName}</p><h2 className="text-2xl font-semibold tracking-tight text-neutral-950">{isEditing ? "Edit option" : "Add an option"}</h2></div>
+      <form onSubmit={submit} className="space-y-4">
+        <Field label="Product URL"><input value={form.url} onChange={(e) => updateField("url", e.target.value)} placeholder="https://..." className="w-full rounded-2xl border border-neutral-200 px-4 py-3 outline-none ring-neutral-950/10 focus:ring-4" /></Field>
+        <Field label="Option title"><input value={form.title} onChange={(e) => updateField("title", e.target.value)} placeholder="Lulu and Georgia, Lee Tall Dresser" className="w-full rounded-2xl border border-neutral-200 px-4 py-3 outline-none ring-neutral-950/10 focus:ring-4" /></Field>
+        <Field label="Price"><input value={form.price} onChange={(e) => updateField("price", e.target.value)} placeholder="$1,998" className="w-full rounded-2xl border border-neutral-200 px-4 py-3 outline-none ring-neutral-950/10 focus:ring-4" /></Field>
+        <Field label="Photo URL"><input value={form.image.startsWith("data:") ? "" : form.image} onChange={(e) => updateField("image", e.target.value)} placeholder="https://image-url..." className="w-full rounded-2xl border border-neutral-200 px-4 py-3 outline-none ring-neutral-950/10 focus:ring-4" /></Field>
+        <div className="rounded-2xl border border-dashed border-neutral-300 p-4"><label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-neutral-50 px-4 py-4 text-sm font-medium text-neutral-700 hover:bg-neutral-100"><Upload className="h-4 w-4" />Upload image instead<input type="file" accept="image/*" className="hidden" onChange={handleUpload} /></label>{uploadName && <p className="mt-2 text-center text-xs text-neutral-500">Using: {uploadName}</p>}</div>
+        {form.image && <div className="overflow-hidden rounded-2xl border border-neutral-200"><img src={form.image} alt="Preview" className="h-44 w-full object-cover" /></div>}
+        <Button type="submit" className="w-full rounded-2xl py-6 text-base" disabled={!form.title.trim()}>{isEditing ? "Save changes" : "Submit option"}</Button>
+      </form>
+    </ModalShell>
+  );
+}
+
+function NewItemModal({ roomName, onClose, onSubmit, existingItem }) {
+  const [itemName, setItemName] = useState(existingItem?.itemName || "");
+  const [directionNotes, setDirectionNotes] = useState(existingItem?.directionNotes || "");
+  const [isPriority, setIsPriority] = useState(existingItem?.priority === "Highest priority");
+  const isEditing = Boolean(existingItem);
+  function submit(event) {
+    event.preventDefault();
+    if (!itemName.trim()) return;
+    onSubmit({ ...existingItem, itemName: itemName.trim(), priority: isPriority ? "Highest priority" : undefined, directionNotes: directionNotes.trim(), options: existingItem?.options || [], archivedOptions: existingItem?.archivedOptions || [] });
+    onClose();
+  }
+  return (
+    <ModalShell onClose={onClose}>
+      <div className="mb-5 -mt-8"><p className="text-sm font-medium text-neutral-500">{roomName}</p><h2 className="text-2xl font-semibold tracking-tight text-neutral-950">{isEditing ? "Edit item" : "Add new item"}</h2></div>
+      <form onSubmit={submit} className="space-y-4">
+        <Field label="Item name"><input value={itemName} onChange={(e) => setItemName(e.target.value)} placeholder="Curtains, mirror, bar cart..." className="w-full rounded-2xl border border-neutral-200 px-4 py-3 outline-none ring-neutral-950/10 focus:ring-4" /></Field>
+        <Field label="Overall direction / notes"><textarea value={directionNotes} onChange={(e) => setDirectionNotes(e.target.value)} placeholder='Looking at something in the 90" range... or comfy enough to work in' rows={4} className="w-full resize-none rounded-2xl border border-neutral-200 px-4 py-3 outline-none ring-neutral-950/10 focus:ring-4" /></Field>
+        <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-neutral-200 p-4 text-sm font-medium text-neutral-700"><input type="checkbox" checked={isPriority} onChange={(e) => setIsPriority(e.target.checked)} className="h-4 w-4" />Mark as highest priority</label>
+        <Button type="submit" className="w-full rounded-2xl py-6 text-base" disabled={!itemName.trim()}>{isEditing ? "Save item" : "Add item"}</Button>
+      </form>
+    </ModalShell>
+  );
+}
+
+function NewRoomModal({ onClose, onSubmit, existingRooms }) {
+  const [roomName, setRoomName] = useState("");
+  const alreadyExists = existingRooms.some((room) => room.toLowerCase() === roomName.trim().toLowerCase());
+  function submit(event) { event.preventDefault(); if (!roomName.trim() || alreadyExists) return; onSubmit(roomName.trim()); onClose(); }
+  return <ModalShell onClose={onClose}><div className="mb-5 -mt-8"><p className="text-sm font-medium text-neutral-500">Top switcher</p><h2 className="text-2xl font-semibold tracking-tight text-neutral-950">Add a room</h2></div><form onSubmit={submit} className="space-y-4"><Field label="Room / category name"><input value={roomName} onChange={(e) => setRoomName(e.target.value)} placeholder="Kitchen, Bathroom, Office..." className="w-full rounded-2xl border border-neutral-200 px-4 py-3 outline-none ring-neutral-950/10 focus:ring-4" /></Field>{alreadyExists && <p className="text-sm font-medium text-red-600">That room already exists.</p>}<Button type="submit" className="w-full rounded-2xl py-6 text-base" disabled={!roomName.trim() || alreadyExists}>Add room</Button></form></ModalShell>;
+}
+
+function CommentBox({ option, onAddComment }) {
+  const [open, setOpen] = useState(false);
+  const [comment, setComment] = useState("");
+  function submit() { if (!comment.trim()) return; onAddComment(option.id, comment.trim()); setComment(""); setOpen(false); }
+  return <div className="mt-3"><button onClick={() => setOpen((value) => !value)} className="flex items-center gap-2 text-sm font-medium text-neutral-600 hover:text-neutral-950"><MessageCircle className="h-4 w-4" />{option.comments.length ? `${option.comments.length} comment${option.comments.length === 1 ? "" : "s"}` : "Comment"}</button>{open && <div className="mt-3 rounded-2xl bg-neutral-50 p-3">{!!option.comments.length && <div className="mb-3 space-y-2">{option.comments.map((entry, index) => <p key={`${option.id}-comment-${index}`} className="rounded-xl bg-white px-3 py-2 text-sm text-neutral-700">{entry}</p>)}</div>}<textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Leave a note..." rows={2} className="w-full resize-none rounded-xl border border-neutral-200 px-3 py-2 text-sm outline-none ring-neutral-950/10 focus:ring-4" /><Button onClick={submit} size="sm" className="mt-2 rounded-xl" disabled={!comment.trim()}>Add comment</Button></div>}</div>;
+}
+
+function ItemSection({ roomName, item, itemIndex, onLike, onAddComment, onAddOption, onEditOption, onArchiveOption, onRestoreOption, onEditItem, onSelectFinalOption, onDragStart, onDragOver, onDrop }) {
+  const scrollRef = useRef(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingOption, setEditingOption] = useState(null);
+  const [editItemOpen, setEditItemOpen] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const sortedOptions = [...item.options].sort((a, b) => b.likes - a.likes);
+  const archivedOptions = item.archivedOptions || [];
+  const hasFinalSelection = Boolean(item.finalOptionId);
+  function scroll(direction) { const element = scrollRef.current; if (!element) return; element.scrollBy({ left: direction * 360, behavior: "smooth" }); }
+  return (
+    <motion.section layout draggable onDragStart={(event) => onDragStart(event, itemIndex)} onDragOver={(event) => onDragOver(event, itemIndex)} onDrop={(event) => onDrop(event, itemIndex)} className="cursor-grab rounded-[2rem] border border-neutral-200 bg-white p-5 shadow-sm transition hover:border-neutral-300 active:cursor-grabbing md:p-6">
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <div className="flex min-w-0 gap-3"><div className="mt-1 hidden rounded-xl border border-neutral-200 bg-white p-2 text-neutral-400 transition hover:border-neutral-300 hover:text-neutral-600 md:block" title="Drag to reorder"><GripVertical className="h-5 w-5" /></div><div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-400">{roomName}</p><div className="mt-1 flex flex-wrap items-center gap-2"><h2 className="text-2xl font-semibold tracking-tight text-neutral-950 md:text-[2rem]">{item.itemName}</h2>{item.priority === "Highest priority" && <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-orange-700"><Flame className="h-3.5 w-3.5" />High priority</span>}<Button variant="ghost" size="icon" onClick={() => setEditItemOpen(true)} className="h-8 w-8 rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700" aria-label={`Edit ${item.itemName}`}><Edit3 className="h-4 w-4" /></Button></div>{item.directionNotes && <p className="mt-2 max-w-2xl text-sm italic leading-6 text-neutral-500">{item.directionNotes}</p>}</div></div>
+        <div className="flex shrink-0 items-start gap-2 pt-1">{!!archivedOptions.length && <Button variant="outline" onClick={() => setArchiveOpen((value) => !value)} className="rounded-full"><Archive className="mr-2 h-4 w-4" />Archive ({archivedOptions.length})</Button>}<Button onClick={() => setModalOpen(true)} className="rounded-full shadow-sm"><Plus className="mr-2 h-4 w-4" />Add option</Button></div>
+      </div>
+      {archiveOpen && !!archivedOptions.length && <div className="mb-4 rounded-3xl border border-dashed border-neutral-300 bg-neutral-50 p-4"><p className="mb-3 text-sm font-semibold text-neutral-700">Archived options</p><div className="grid gap-2 md:grid-cols-2">{archivedOptions.map((option) => <div key={option.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white p-3 text-sm"><div><p className="font-semibold text-neutral-900">{option.title}</p><p className="text-neutral-500">{option.price} · {option.likes} likes</p></div><Button size="sm" variant="secondary" onClick={() => onRestoreOption(item.itemName, option.id)} className="rounded-full"><RotateCcw className="mr-1.5 h-3.5 w-3.5" />Restore</Button></div>)}</div></div>}
+      <div className="relative"><Button variant="secondary" size="icon" onClick={() => scroll(-1)} className="absolute left-0 top-1/2 z-10 hidden -translate-y-1/2 rounded-full shadow-md md:flex" aria-label="Scroll left"><ChevronLeft className="h-5 w-5" /></Button><Button variant="secondary" size="icon" onClick={() => scroll(1)} className="absolute right-0 top-1/2 z-10 hidden -translate-y-1/2 rounded-full shadow-md md:flex" aria-label="Scroll right"><ChevronRight className="h-5 w-5" /></Button><div ref={scrollRef} className="flex snap-x gap-4 overflow-x-auto scroll-smooth pb-2 md:px-10">{sortedOptions.length ? sortedOptions.map((option) => { const isFinal = item.finalOptionId === option.id; const isDimmed = hasFinalSelection && !isFinal; return <Card key={option.id} className={`min-w-[280px] snap-start overflow-hidden rounded-3xl border-neutral-200 shadow-sm transition md:min-w-[340px] ${isFinal ? "ring-4 ring-green-200" : ""} ${isDimmed ? "opacity-35 grayscale" : ""}`}><a href={option.url} target="_blank" rel="noreferrer" className="group block"><div className="relative h-56 overflow-hidden bg-neutral-100"><img src={option.image} alt={option.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /><div className="absolute right-3 top-3 rounded-full bg-white/90 p-2 shadow-sm backdrop-blur"><ExternalLink className="h-4 w-4 text-neutral-700" /></div>{isFinal && <div className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-green-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm"><CheckCircle2 className="h-3.5 w-3.5" />Final</div>}</div></a><CardContent className="p-4"><div className="flex items-start justify-between gap-4"><a href={option.url} target="_blank" rel="noreferrer" className="group"><h3 className="text-lg font-semibold leading-tight text-neutral-950 group-hover:underline">{option.title}</h3><p className="mt-1 text-base font-medium text-neutral-600">{option.price}</p></a><div className="flex shrink-0 flex-col gap-2"><button onClick={() => onSelectFinalOption(item.itemName, option.id)} className={`flex items-center gap-1 rounded-full px-3 py-2 text-sm font-semibold ${isFinal ? "bg-green-600 text-white" : "bg-neutral-100 text-neutral-700 hover:bg-green-50 hover:text-green-700"}`} aria-label={`Lock in ${option.title}`}><CheckCircle2 className="h-4 w-4" />{isFinal ? "Locked" : "Lock"}</button><button onClick={() => onLike(option.id)} className={`flex items-center gap-1 rounded-full px-3 py-2 text-sm font-semibold ${option.liked ? "bg-rose-100 text-rose-600" : "bg-neutral-100 text-neutral-700 hover:bg-rose-50 hover:text-rose-600"}`} aria-label={`${option.liked ? "Unlike" : "Like"} ${option.title}`}><Heart className={`h-4 w-4 ${option.liked ? "fill-current" : ""}`} />{option.likes}</button></div></div><div className="mt-3 flex flex-wrap items-center justify-between gap-3"><CommentBox option={option} onAddComment={onAddComment} /><div className="flex gap-1"><button onClick={() => setEditingOption(option)} className="flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold text-neutral-500 hover:bg-neutral-100 hover:text-neutral-950"><Edit3 className="h-3.5 w-3.5" />Edit</button><button onClick={() => onArchiveOption(item.itemName, option.id)} className="flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold text-neutral-500 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" />Delete</button></div></div></CardContent></Card> }) : <div className="flex min-h-48 min-w-full items-center justify-center rounded-3xl border border-dashed border-neutral-300 bg-neutral-50 p-8 text-center"><div><p className="text-lg font-semibold text-neutral-800">No options yet</p><p className="mt-1 text-sm text-neutral-500">Add the first contender for {item.itemName}.</p><Button onClick={() => setModalOpen(true)} className="mt-4 rounded-full"><Plus className="mr-2 h-4 w-4" />Add option</Button></div></div>}</div></div>
+      {modalOpen && <OptionModal roomName={roomName} itemName={item.itemName} onClose={() => setModalOpen(false)} onSubmit={(option) => onAddOption(item.itemName, option)} />}
+      {editingOption && <OptionModal roomName={roomName} itemName={item.itemName} existingOption={editingOption} onClose={() => setEditingOption(null)} onSubmit={(option) => onEditOption(option.id, option)} />}
+      {editItemOpen && <NewItemModal roomName={roomName} existingItem={item} onClose={() => setEditItemOpen(false)} onSubmit={(updatedItem) => onEditItem(item.itemName, updatedItem)} />}
+    </motion.section>
+  );
+}
+
+function RoomFurniturePicker() {
+  const [activeRoom, setActiveRoom] = useState("Bedroom");
+  const [rooms, setRooms] = useState(starterRooms);
+  const [newItemOpen, setNewItemOpen] = useState(false);
+  const [newRoomOpen, setNewRoomOpen] = useState(false);
+  const [draggedItemIndex, setDraggedItemIndex] = useState(null);
+  const [isLoading, setIsLoading] = useState(isSupabaseConfigured);
+  const [saveStatus, setSaveStatus] = useState(isSupabaseConfigured ? "Connecting to shared database…" : "Database not connected yet — changes are temporary.");
+  const hasLoadedFromSupabase = useRef(false);
+  const saveTimer = useRef(null);
+  const roomNames = Object.keys(rooms);
+
+  useEffect(() => {
+    async function loadSharedState() {
+      if (!isSupabaseConfigured) return;
+      setIsLoading(true);
+      const { data, error } = await supabase.from("app_state").select("state").eq("id", APP_STATE_ID).maybeSingle();
+      if (error) {
+        console.error(error);
+        setSaveStatus("Could not load shared data. Check Supabase settings.");
+      } else if (data?.state?.rooms) {
+        setRooms(data.state.rooms);
+        setSaveStatus("Shared data loaded.");
+      } else {
+        await supabase.from("app_state").upsert({ id: APP_STATE_ID, state: { rooms: starterRooms }, updated_at: new Date().toISOString() });
+        setSaveStatus("Shared database initialized.");
+      }
+      hasLoadedFromSupabase.current = true;
+      setIsLoading(false);
+    }
+    loadSharedState();
+  }, []);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !hasLoadedFromSupabase.current) return;
+    window.clearTimeout(saveTimer.current);
+    setSaveStatus("Saving…");
+    saveTimer.current = window.setTimeout(async () => {
+      const { error } = await supabase.from("app_state").upsert({ id: APP_STATE_ID, state: { rooms }, updated_at: new Date().toISOString() });
+      if (error) {
+        console.error(error);
+        setSaveStatus("Save failed — check Supabase permissions.");
+      } else {
+        setSaveStatus("Saved to shared database.");
+      }
+    }, 650);
+    return () => window.clearTimeout(saveTimer.current);
+  }, [rooms]);
+
+  function updateOption(optionId, updater) { setRooms((prevRooms) => { const nextRooms = structuredClone(prevRooms); for (const room of Object.values(nextRooms)) { for (const item of room) { const index = item.options.findIndex((option) => option.id === optionId); if (index >= 0) item.options[index] = updater(item.options[index]); } } return nextRooms; }); }
+  function likeOption(optionId) { updateOption(optionId, (option) => { const isLiked = Boolean(option.liked); return { ...option, liked: !isLiked, likes: isLiked ? Math.max(0, option.likes - 1) : option.likes + 1 }; }); }
+  function editOption(optionId, updatedOption) { updateOption(optionId, () => updatedOption); }
+  function addComment(optionId, comment) { updateOption(optionId, (option) => ({ ...option, comments: [...option.comments, comment] })); }
+  function addOption(itemName, option) { setRooms((prevRooms) => { const nextRooms = structuredClone(prevRooms); const targetItem = nextRooms[activeRoom].find((item) => item.itemName === itemName); if (targetItem) targetItem.options.unshift(option); return nextRooms; }); }
+  function addItem(newItem) { setRooms((prevRooms) => ({ ...prevRooms, [activeRoom]: [...prevRooms[activeRoom], { ...newItem, archivedOptions: [] }] })); }
+  function editItem(oldItemName, updatedItem) { setRooms((prevRooms) => { const nextRooms = structuredClone(prevRooms); nextRooms[activeRoom] = nextRooms[activeRoom].map((item) => item.itemName === oldItemName ? updatedItem : item); return nextRooms; }); }
+  function selectFinalOption(itemName, optionId) { setRooms((prevRooms) => { const nextRooms = structuredClone(prevRooms); const targetItem = nextRooms[activeRoom].find((item) => item.itemName === itemName); if (!targetItem) return nextRooms; targetItem.finalOptionId = targetItem.finalOptionId === optionId ? undefined : optionId; return nextRooms; }); }
+  const finalSelections = (rooms[activeRoom] || []).map((item) => ({ itemName: item.itemName, option: item.options.find((option) => option.id === item.finalOptionId) })).filter((selection) => selection.option);
+  function addRoom(roomName) { setRooms((prevRooms) => ({ ...prevRooms, [roomName]: [] })); setActiveRoom(roomName); }
+  function archiveOption(itemName, optionId) { setRooms((prevRooms) => { const nextRooms = structuredClone(prevRooms); const targetItem = nextRooms[activeRoom].find((item) => item.itemName === itemName); if (!targetItem) return nextRooms; const optionToArchive = targetItem.options.find((option) => option.id === optionId); if (!optionToArchive) return nextRooms; targetItem.options = targetItem.options.filter((option) => option.id !== optionId); targetItem.archivedOptions = [optionToArchive, ...(targetItem.archivedOptions || [])]; if (targetItem.finalOptionId === optionId) targetItem.finalOptionId = undefined; return nextRooms; }); }
+  function restoreOption(itemName, optionId) { setRooms((prevRooms) => { const nextRooms = structuredClone(prevRooms); const targetItem = nextRooms[activeRoom].find((item) => item.itemName === itemName); if (!targetItem) return nextRooms; const optionToRestore = (targetItem.archivedOptions || []).find((option) => option.id === optionId); if (!optionToRestore) return nextRooms; targetItem.archivedOptions = targetItem.archivedOptions.filter((option) => option.id !== optionId); targetItem.options = [optionToRestore, ...targetItem.options]; return nextRooms; }); }
+  function handleItemDragStart(event, index) { setDraggedItemIndex(index); event.dataTransfer.effectAllowed = "move"; }
+  function handleItemDragOver(event) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }
+  function handleItemDrop(event, dropIndex) { event.preventDefault(); if (draggedItemIndex === null || draggedItemIndex === dropIndex) return; setRooms((prevRooms) => { const nextRooms = structuredClone(prevRooms); const reorderedItems = [...nextRooms[activeRoom]]; const [draggedItem] = reorderedItems.splice(draggedItemIndex, 1); reorderedItems.splice(dropIndex, 0, draggedItem); nextRooms[activeRoom] = reorderedItems; return nextRooms; }); setDraggedItemIndex(null); }
+
+  return (
+    <div className="min-h-screen bg-[#f7f3ed] text-neutral-950">
+      <header className="sticky top-0 z-30 border-b border-neutral-200 bg-[#f7f3ed]/85 backdrop-blur-xl"><div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 md:px-6"><div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between"><div><p className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">Time to go...shoppppping</p><h1 className="mt-1 text-3xl font-semibold tracking-tight md:text-5xl">Colette's new apartment</h1></div><div className="max-w-md text-sm leading-6 text-neutral-600 md:text-right"><p>Browse options, upvote favorites, leave notes, and add new contenders as you find them.</p><p className={`mt-2 text-xs font-semibold ${saveStatus.includes("failed") || saveStatus.includes("Could not") || saveStatus.includes("not connected") ? "text-orange-700" : "text-green-700"}`}>{isLoading ? "Loading shared data…" : saveStatus}</p></div></div><div className="flex gap-2 overflow-x-auto rounded-full bg-white p-2 shadow-sm">{roomNames.map((roomName) => <button key={roomName} onClick={() => setActiveRoom(roomName)} className={`relative whitespace-nowrap rounded-full px-5 py-3 text-sm font-semibold transition ${activeRoom === roomName ? "text-white" : "text-neutral-600 hover:text-neutral-950"}`}>{activeRoom === roomName && <motion.span layoutId="room-pill" className="absolute inset-0 rounded-full bg-neutral-950" transition={{ type: "spring", stiffness: 450, damping: 35 }} />}<span className="relative z-10">{roomName}</span></button>)}<button onClick={() => setNewRoomOpen(true)} className="relative whitespace-nowrap rounded-full border border-dashed border-neutral-300 px-5 py-3 text-sm font-semibold text-neutral-600 transition hover:border-neutral-950 hover:text-neutral-950"><Plus className="mr-1 inline h-4 w-4" /> Add room</button></div></div></header>
+      <section className="mx-auto max-w-6xl px-4 pt-6 md:px-6"><div className="rounded-[2rem] border border-neutral-200 bg-white/80 p-5 shadow-sm"><div className="mb-4 flex items-end justify-between gap-4"><div><p className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">Final selections</p><h2 className="text-2xl font-semibold tracking-tight text-neutral-950">The locked-in look</h2></div><p className="hidden text-sm text-neutral-500 md:block">{finalSelections.length} selected</p></div>{finalSelections.length ? <div className="flex gap-3 overflow-x-auto pb-1">{finalSelections.map(({ itemName, option }) => <a key={`${itemName}-${option.id}`} href={option.url} target="_blank" rel="noreferrer" className="group min-w-44 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm"><img src={option.image} alt={option.title} className="h-28 w-full object-cover transition group-hover:scale-105" /><div className="p-3"><p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">{itemName}</p><p className="mt-1 line-clamp-2 text-sm font-semibold leading-tight text-neutral-950 group-hover:underline">{option.title}</p><p className="mt-1 text-sm font-medium text-neutral-600">{option.price}</p></div></a>)}</div> : <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-500">Nothing locked in yet. Choose an option and click “Lock” to start building the final look.</div>}</div></section>
+      <main className="mx-auto max-w-6xl space-y-6 px-4 py-8 md:px-6 md:py-10"><AnimatePresence mode="wait"><motion.div key={activeRoom} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.22 }} className="space-y-6">{rooms[activeRoom]?.length ? rooms[activeRoom].map((item, index) => <ItemSection key={`${item.itemName}-${index}`} roomName={activeRoom} item={item} itemIndex={index} onLike={likeOption} onAddComment={addComment} onAddOption={addOption} onEditOption={editOption} onArchiveOption={archiveOption} onRestoreOption={restoreOption} onEditItem={editItem} onSelectFinalOption={selectFinalOption} onDragStart={handleItemDragStart} onDragOver={handleItemDragOver} onDrop={handleItemDrop} />) : <section className="rounded-[2rem] border border-dashed border-neutral-300 bg-white/70 p-8 text-center shadow-sm"><h2 className="text-2xl font-semibold tracking-tight text-neutral-950">Nothing here yet</h2><p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-neutral-600">Add the first item to this room/category.</p></section>}<section className="rounded-[2rem] border border-dashed border-neutral-300 bg-white/70 p-6 text-center shadow-sm"><h2 className="text-2xl font-semibold tracking-tight text-neutral-950">Need another category?</h2><p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-neutral-600">Add a new item to {activeRoom}, then start collecting options for it.</p><Button onClick={() => setNewItemOpen(true)} className="mt-4 rounded-full"><Plus className="mr-2 h-4 w-4" />Add new item</Button></section></motion.div></AnimatePresence></main>
+      {newItemOpen && <NewItemModal roomName={activeRoom} onClose={() => setNewItemOpen(false)} onSubmit={addItem} />}
+      {newRoomOpen && <NewRoomModal onClose={() => setNewRoomOpen(false)} onSubmit={addRoom} existingRooms={roomNames} />}
+    </div>
+  );
+}
+
+createRoot(document.getElementById("root")).render(<RoomFurniturePicker />);
