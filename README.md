@@ -1,17 +1,17 @@
-# Colette's Apartment Picker
+# Colette’s Apartment Picker
 
-A Vite + React app ready to deploy on Vercel.
+Vercel-ready Vite + React project.
 
-## Local preview
-
+## Local test
 ```bash
 npm install
-npm run dev
+npm run build
 ```
 
 ## Vercel settings
-
 - Framework Preset: Vite
+- Install Command: npm install
 - Build Command: npm run build
 - Output Directory: dist
-- Install Command: npm install
+
+Important: `package.json` must be visible at the top level of your GitHub repo.
